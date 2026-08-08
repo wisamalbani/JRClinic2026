@@ -323,3 +323,180 @@ CREATE POLICY "Users read own profile" ON public.users
 -- Policy: AUDIT LOG
 CREATE POLICY "Owner full access on audit_log" ON public.audit_log
     FOR ALL USING (public.get_current_user_role() = 'owner');
+
+-- ============================================================================
+-- PHASE 5: INVENTORY & MATERIAL CONSUMPTION MANAGEMENT
+-- ============================================================================
+
+-- 1. INVENTORY ITEMS
+CREATE TABLE IF NOT EXISTS public.inventory_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL UNIQUE,
+    units_per_package INT NOT NULL CHECK (units_per_package > 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 2. REPS (المندوبون)
+CREATE TABLE IF NOT EXISTS public.reps (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50),
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 3. MATERIAL BATCHES (دفعات المواد المشتراة/المستلمة)
+CREATE TABLE IF NOT EXISTS public.material_batches (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL REFERENCES public.inventory_items(id) ON DELETE CASCADE,
+    source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('rep', 'cash')),
+    rep_id UUID REFERENCES public.reps(id) ON DELETE SET NULL,
+    purchase_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    package_qty INT NOT NULL CHECK (package_qty > 0),
+    unit_price_per_package NUMERIC(14,2) NOT NULL CHECK (unit_price_per_package >= 0),
+    currency VARCHAR(10) NOT NULL DEFAULT 'SYP',
+    unit_cost NUMERIC(14,4) NOT NULL CHECK (unit_cost >= 0),
+    remaining_units INT NOT NULL CHECK (remaining_units >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT check_rep_required CHECK (
+        (source_type = 'rep' AND rep_id IS NOT NULL) OR
+        (source_type = 'cash' AND rep_id IS NULL)
+    )
+);
+
+-- 4. MATERIAL CONSUMPTION (تسجيل الاستهلاك)
+CREATE TABLE IF NOT EXISTS public.material_consumption (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    batch_id UUID NOT NULL REFERENCES public.material_batches(id) ON DELETE CASCADE,
+    clinic_id UUID NOT NULL REFERENCES public.clinics(id) ON DELETE CASCADE,
+    quantity_units INT NOT NULL CHECK (quantity_units > 0),
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    notes TEXT,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 5. REP PAYMENTS (تسديدات المندوبين)
+CREATE TABLE IF NOT EXISTS public.rep_payments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rep_id UUID NOT NULL REFERENCES public.reps(id) ON DELETE CASCADE,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    amount NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+    currency VARCHAR(10) NOT NULL DEFAULT 'SYP',
+    notes TEXT,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Ensure expense category "استهلاك مواد" exists
+INSERT INTO public.expense_categories (name) VALUES ('استهلاك مواد') ON CONFLICT (name) DO NOTHING;
+
+-- TRIGGER & FUNCTION FOR MATERIAL CONSUMPTION
+CREATE OR REPLACE FUNCTION public.process_material_consumption()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_batch RECORD;
+    v_item RECORD;
+    v_cat_id UUID;
+    v_cash_box_id UUID;
+    v_description TEXT;
+BEGIN
+    -- 1. Get batch details
+    SELECT * INTO v_batch FROM public.material_batches WHERE id = NEW.batch_id FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'دفعة المواد غير موجودة';
+    END IF;
+
+    -- 2. Check remaining units
+    IF v_batch.remaining_units < NEW.quantity_units THEN
+        RAISE EXCEPTION 'الكمية المطلوبة (%) أكبر من الكمية المتاحة بالدفعة (%)', NEW.quantity_units, v_batch.remaining_units;
+    END IF;
+
+    -- 3. Get item details for description
+    SELECT * INTO v_item FROM public.inventory_items WHERE id = v_batch.item_id;
+
+    -- 4. Deduct remaining units from material_batches
+    UPDATE public.material_batches
+    SET remaining_units = remaining_units - NEW.quantity_units
+    WHERE id = NEW.batch_id;
+
+    -- 5. Get or Create expense category ID for "استهلاك مواد"
+    SELECT id INTO v_cat_id FROM public.expense_categories WHERE name = 'استهلاك مواد' LIMIT 1;
+    IF v_cat_id IS NULL THEN
+        INSERT INTO public.expense_categories (name) VALUES ('استهلاك مواد')
+        RETURNING id INTO v_cat_id;
+    END IF;
+
+    -- 6. Get cash box ID ('المركز')
+    SELECT id INTO v_cash_box_id FROM public.cash_boxes WHERE name = 'المركز' LIMIT 1;
+    IF v_cash_box_id IS NULL THEN
+        SELECT id INTO v_cash_box_id FROM public.cash_boxes LIMIT 1;
+    END IF;
+
+    -- 7. Build description text
+    v_description := 'استهلاك مواد: ' || COALESCE(v_item.name, 'مادة');
+    IF NEW.notes IS NOT NULL AND NEW.notes <> '' THEN
+        v_description := v_description || ' (' || NEW.notes || ')';
+    END IF;
+
+    -- 8. Auto insert transaction (Expense)
+    INSERT INTO public.transactions (
+        cash_box_id,
+        date,
+        type,
+        amount,
+        currency,
+        exchange_rate_used,
+        clinic_id,
+        expense_category_id,
+        is_suspense,
+        description,
+        created_by
+    ) VALUES (
+        v_cash_box_id,
+        NEW.date,
+        'expense',
+        ROUND(NEW.quantity_units * v_batch.unit_cost, 2),
+        v_batch.currency,
+        1.0000,
+        NEW.clinic_id,
+        v_cat_id,
+        false,
+        v_description,
+        NEW.created_by
+    );
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_process_material_consumption ON public.material_consumption;
+CREATE TRIGGER trigger_process_material_consumption
+    BEFORE INSERT ON public.material_consumption
+    FOR EACH ROW
+    EXECUTE FUNCTION public.process_material_consumption();
+
+-- RLS POLICIES FOR PHASE 5
+ALTER TABLE public.inventory_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.material_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.material_consumption ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rep_payments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Owner full access inventory_items" ON public.inventory_items FOR ALL USING (public.get_current_user_role() = 'owner');
+CREATE POLICY "Owner full access reps" ON public.reps FOR ALL USING (public.get_current_user_role() = 'owner');
+CREATE POLICY "Owner full access material_batches" ON public.material_batches FOR ALL USING (public.get_current_user_role() = 'owner');
+CREATE POLICY "Owner full access material_consumption" ON public.material_consumption FOR ALL USING (public.get_current_user_role() = 'owner');
+CREATE POLICY "Owner full access rep_payments" ON public.rep_payments FOR ALL USING (public.get_current_user_role() = 'owner');
+
+CREATE POLICY "Secretary read inventory_items" ON public.inventory_items FOR SELECT USING (public.get_current_user_role() = 'secretary');
+CREATE POLICY "Secretary read reps" ON public.reps FOR SELECT USING (public.get_current_user_role() = 'secretary');
+CREATE POLICY "Secretary read material_batches" ON public.material_batches FOR SELECT USING (public.get_current_user_role() = 'secretary');
+CREATE POLICY "Secretary insert material_batches" ON public.material_batches FOR INSERT WITH CHECK (public.get_current_user_role() = 'secretary');
+
+CREATE POLICY "Secretary insert material_consumption" ON public.material_consumption FOR INSERT WITH CHECK (public.get_current_user_role() = 'secretary');
+CREATE POLICY "Secretary read material_consumption" ON public.material_consumption FOR SELECT USING (public.get_current_user_role() = 'secretary');
+
+CREATE POLICY "Secretary insert rep_payments" ON public.rep_payments FOR INSERT WITH CHECK (public.get_current_user_role() = 'secretary');
+CREATE POLICY "Secretary read rep_payments" ON public.rep_payments FOR SELECT USING (public.get_current_user_role() = 'secretary');
+

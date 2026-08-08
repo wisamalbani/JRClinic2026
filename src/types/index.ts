@@ -91,3 +91,62 @@ export interface SystemPermission {
   name: string;
   description: string;
 }
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  units_per_package: number;
+  created_at?: string;
+}
+
+export interface Rep {
+  id: string;
+  name: string;
+  phone?: string | null;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export interface MaterialBatch {
+  id: string;
+  item_id: string;
+  source_type: 'rep' | 'cash';
+  rep_id?: string | null;
+  purchase_date: string;
+  package_qty: number;
+  unit_price_per_package: number;
+  currency: string;
+  unit_cost: number;
+  remaining_units: number;
+  created_at?: string;
+  // Join properties
+  inventory_items?: InventoryItem;
+  reps?: Rep;
+}
+
+export interface MaterialConsumption {
+  id: string;
+  batch_id: string;
+  clinic_id: string;
+  quantity_units: number;
+  date: string;
+  notes?: string | null;
+  created_by?: string;
+  created_at?: string;
+  // Join properties
+  material_batches?: MaterialBatch & { inventory_items?: InventoryItem; reps?: Rep };
+  clinics?: Clinic;
+}
+
+export interface RepPayment {
+  id: string;
+  rep_id: string;
+  date: string;
+  amount: number;
+  currency: string;
+  notes?: string | null;
+  created_by?: string;
+  created_at?: string;
+  reps?: Rep;
+}
+

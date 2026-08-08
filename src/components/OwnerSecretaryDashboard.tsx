@@ -18,6 +18,7 @@ import {
   Lock,
   Tag,
   BarChart3,
+  Boxes,
 } from 'lucide-react';
 import { SupabaseSetupModal } from './SupabaseSetupModal';
 import { TransactionsList } from './TransactionsList';
@@ -25,11 +26,12 @@ import { SuspenseTransactions } from './SuspenseTransactions';
 import { ExpenseCategoriesManager } from './ExpenseCategoriesManager';
 import { ClinicsManager } from './ClinicsManager';
 import { ReportsManager } from './reports/ReportsManager';
+import { InventoryManager } from './inventory/InventoryManager';
 
 export const OwnerSecretaryDashboard: React.FC = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'transactions' | 'suspense' | 'categories' | 'clinics' | 'reports' | 'overview'>('transactions');
+  const [activeTab, setActiveTab] = useState<'transactions' | 'suspense' | 'categories' | 'clinics' | 'reports' | 'inventory' | 'overview'>('transactions');
 
   const [stats, setStats] = useState({
     clinicsCount: 0,
@@ -185,6 +187,18 @@ export const OwnerSecretaryDashboard: React.FC = () => {
             <span>تصنيفات المصاريف وأسعار الصرف</span>
           </button>
 
+          <button
+            onClick={() => setActiveTab('inventory')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'inventory'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <Boxes className="w-4 h-4" />
+            <span>المواد والمخزون (المرحلة 5)</span>
+          </button>
+
           {isOwner && (
             <button
               onClick={() => setActiveTab('clinics')}
@@ -243,6 +257,9 @@ export const OwnerSecretaryDashboard: React.FC = () => {
 
         {/* TAB 5: Phase 4 Financial Reports (Owner only) */}
         {activeTab === 'reports' && isOwner && <ReportsManager />}
+
+        {/* TAB 6: Phase 5 Inventory & Materials */}
+        {activeTab === 'inventory' && <InventoryManager />}
 
         {/* TAB 4: Overview & Phase 1 Checks */}
         {activeTab === 'overview' && (
