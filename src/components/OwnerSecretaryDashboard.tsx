@@ -17,17 +17,19 @@ import {
   Search,
   Lock,
   Tag,
+  BarChart3,
 } from 'lucide-react';
 import { SupabaseSetupModal } from './SupabaseSetupModal';
 import { TransactionsList } from './TransactionsList';
 import { SuspenseTransactions } from './SuspenseTransactions';
 import { ExpenseCategoriesManager } from './ExpenseCategoriesManager';
 import { ClinicsManager } from './ClinicsManager';
+import { ReportsManager } from './reports/ReportsManager';
 
 export const OwnerSecretaryDashboard: React.FC = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'transactions' | 'suspense' | 'categories' | 'clinics' | 'overview'>('transactions');
+  const [activeTab, setActiveTab] = useState<'transactions' | 'suspense' | 'categories' | 'clinics' | 'reports' | 'overview'>('transactions');
 
   const [stats, setStats] = useState({
     clinicsCount: 0,
@@ -197,6 +199,20 @@ export const OwnerSecretaryDashboard: React.FC = () => {
             </button>
           )}
 
+          {isOwner && (
+            <button
+              onClick={() => setActiveTab('reports')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'reports'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>تقارير مالية وتدقيق (المرحلة 4)</span>
+            </button>
+          )}
+
           <button
             onClick={() => setActiveTab('overview')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
@@ -224,6 +240,9 @@ export const OwnerSecretaryDashboard: React.FC = () => {
 
         {/* TAB 4: Clinics & Doctor Percentages (Owner only) */}
         {activeTab === 'clinics' && <ClinicsManager />}
+
+        {/* TAB 5: Phase 4 Financial Reports (Owner only) */}
+        {activeTab === 'reports' && isOwner && <ReportsManager />}
 
         {/* TAB 4: Overview & Phase 1 Checks */}
         {activeTab === 'overview' && (
