@@ -247,8 +247,8 @@ CREATE POLICY "Doctor read own clinic" ON public.clinics
 CREATE POLICY "Owner full access on doctor_percentage_history" ON public.doctor_percentage_history
     FOR ALL USING (public.get_current_user_role() = 'owner');
 
-CREATE POLICY "Others read doctor_percentage_history" ON public.doctor_percentage_history
-    FOR SELECT USING (true);
+CREATE POLICY "Authenticated read doctor_percentage_history" ON public.doctor_percentage_history
+    FOR SELECT TO authenticated USING (true);
 
 -- Policy: CASH BOXES
 CREATE POLICY "Owner full access on cash_boxes" ON public.cash_boxes
