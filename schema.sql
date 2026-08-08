@@ -277,6 +277,16 @@ CREATE POLICY "Secretary insert today rate" ON public.exchange_rates
         AND date = CURRENT_DATE
     );
 
+CREATE POLICY "Secretary update today rate" ON public.exchange_rates
+    FOR UPDATE USING (
+        public.get_current_user_role() = 'secretary'
+        AND date = CURRENT_DATE
+    )
+    WITH CHECK (
+        public.get_current_user_role() = 'secretary'
+        AND date = CURRENT_DATE
+    );
+
 -- Policy: TRANSACTIONS
 -- Owner: full access
 CREATE POLICY "Owner full access on transactions" ON public.transactions

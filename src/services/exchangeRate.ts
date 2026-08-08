@@ -104,23 +104,74 @@ export async function saveTodayExchangeRate(
   const todayStr = new Date().toISOString().split('T')[0];
 
   try {
-    const { error } = await supabase.from('exchange_rates').upsert(
-      {
+    // 1. Check if record for today already exists
+    const { data: existing, error: selectErr } = await supabase
+      .from('exchange_rates')
+      .select('id')
+      .eq('date', todayStr)
+      .maybeSingle();
+
+    if (selectErr) {
+      console.warn('Could not query exchange_rates for date:', selectErr);
+    }
+
+    if (existing?.id) {
+      // Record exists, update it
+      const { error: updateErr } = await supabase
+        .from('exchange_rates')
+        .update({
+          rate,
+          source,
+          ...(userId ? { created_by: userId } : {}),
+        })
+        .eq('id', existing.id);
+
+      if (updateErr) {
+        console.warn('Update exchange_rate failed, trying upsert:', updateErr.message || updateErr);
+        const { error: upsertErr } = await supabase.from('exchange_rates').upsert(
+          {
+            date: todayStr,
+            rate,
+            source,
+            created_by: userId || null,
+          },
+          { onConflict: 'date' }
+        );
+        if (upsertErr) {
+          console.warn('Upsert exchange_rate failed:', upsertErr.message || upsertErr);
+          return false;
+        }
+      }
+      return true;
+    } else {
+      // Record does not exist, insert it
+      const { error: insertErr } = await supabase.from('exchange_rates').insert({
         date: todayStr,
         rate,
         source,
         created_by: userId || null,
-      },
-      { onConflict: 'date' }
-    );
+      });
 
-    if (error) {
-      console.error('Failed to save exchange rate:', error);
-      return false;
+      if (insertErr) {
+        console.warn('Insert exchange_rate failed, trying upsert:', insertErr.message || insertErr);
+        const { error: upsertErr } = await supabase.from('exchange_rates').upsert(
+          {
+            date: todayStr,
+            rate,
+            source,
+            created_by: userId || null,
+          },
+          { onConflict: 'date' }
+        );
+        if (upsertErr) {
+          console.warn('Upsert exchange_rate failed:', upsertErr.message || upsertErr);
+          return false;
+        }
+      }
+      return true;
     }
-    return true;
   } catch (err) {
-    console.error('Error saving exchange rate:', err);
+    console.warn('Error saving exchange rate:', err);
     return false;
   }
 }
