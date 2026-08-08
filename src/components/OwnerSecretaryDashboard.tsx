@@ -22,11 +22,12 @@ import { SupabaseSetupModal } from './SupabaseSetupModal';
 import { TransactionsList } from './TransactionsList';
 import { SuspenseTransactions } from './SuspenseTransactions';
 import { ExpenseCategoriesManager } from './ExpenseCategoriesManager';
+import { ClinicsManager } from './ClinicsManager';
 
 export const OwnerSecretaryDashboard: React.FC = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'transactions' | 'suspense' | 'categories' | 'overview'>('transactions');
+  const [activeTab, setActiveTab] = useState<'transactions' | 'suspense' | 'categories' | 'clinics' | 'overview'>('transactions');
 
   const [stats, setStats] = useState({
     clinicsCount: 0,
@@ -182,6 +183,20 @@ export const OwnerSecretaryDashboard: React.FC = () => {
             <span>تصنيفات المصاريف وأسعار الصرف</span>
           </button>
 
+          {isOwner && (
+            <button
+              onClick={() => setActiveTab('clinics')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'clinics'
+                  ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              <Building2 className="w-4 h-4" />
+              <span>إدارة العيادات ونسب الأطباء</span>
+            </button>
+          )}
+
           <button
             onClick={() => setActiveTab('overview')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
@@ -206,6 +221,9 @@ export const OwnerSecretaryDashboard: React.FC = () => {
 
         {/* TAB 3: Categories & Rates */}
         {activeTab === 'categories' && <ExpenseCategoriesManager />}
+
+        {/* TAB 4: Clinics & Doctor Percentages (Owner only) */}
+        {activeTab === 'clinics' && <ClinicsManager />}
 
         {/* TAB 4: Overview & Phase 1 Checks */}
         {activeTab === 'overview' && (
