@@ -1,5 +1,5 @@
 -- ============================================================================
--- Medical Center Accounting System (نظام المحاسبة للمركز الطبي) - Schema Phase 1
+-- Medical Center Accounting System (نظام المحاسبة للمركز الطبي) - Schema Phase 1 & 2
 -- ============================================================================
 
 -- Enable pgcrypto for UUID generation if needed
@@ -263,6 +263,12 @@ CREATE POLICY "Owner full access on exchange_rates" ON public.exchange_rates
 
 CREATE POLICY "Secretary read on exchange_rates" ON public.exchange_rates
     FOR SELECT USING (public.get_current_user_role() = 'secretary');
+
+CREATE POLICY "Secretary insert today rate" ON public.exchange_rates
+    FOR INSERT WITH CHECK (
+        public.get_current_user_role() = 'secretary'
+        AND date = CURRENT_DATE
+    );
 
 -- Policy: TRANSACTIONS
 -- Owner: full access

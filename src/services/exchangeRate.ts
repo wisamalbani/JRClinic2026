@@ -8,8 +8,31 @@ export interface ExchangeRateResult {
 }
 
 /**
+ * Parses USD exchange rate from sp-today HTML string if available.
+ */
+function parseSpTodayHtml(html: string): number | null {
+  try {
+    const usdMatch =
+      html.match(/دولار[^]*?(\d{1,2}[,.]?\d{3})/i) ||
+      html.match(/USD[^]*?(\d{1,2}[,.]?\d{3})/i) ||
+      html.match(/class=["']value["'][^>]*>\s*([\d,.]+)/i);
+
+    if (usdMatch && usdMatch[1]) {
+      const cleanNum = parseFloat(usdMatch[1].replace(/,/g, ''));
+      if (!isNaN(cleanNum) && cleanNum > 1000) {
+        return cleanNum;
+      }
+    }
+  } catch {
+    // Parse failure
+  }
+  return null;
+}
+
+/**
  * Fetches today's exchange rate from Supabase exchange_rates table first.
- * If not available, attempts external fetch or prompts for manual entry.
+ * If not available, attempts fetching directly from https://www.sp-today.com/.
+ * If sp-today fails, returns rate: null with a warning.
  */
 export async function getTodayExchangeRate(): Promise<ExchangeRateResult> {
   const todayStr = new Date().toISOString().split('T')[0];
@@ -30,32 +53,34 @@ export async function getTodayExchangeRate(): Promise<ExchangeRateResult> {
       };
     }
 
-    // 2. Attempt external auto-fetch (sp-today simulation or API)
+    // 2. Fetch directly from sp-today (https://www.sp-today.com/)
     try {
-      const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD', {
-        signal: AbortSignal.timeout(3000),
+      const response = await fetch('https://www.sp-today.com/', {
+        signal: AbortSignal.timeout(4000),
       });
+
       if (response.ok) {
-        const json = await response.json();
-        if (json && json.rates && json.rates.SYP) {
-          const autoRate = json.rates.SYP;
+        const html = await response.text();
+        const parsedRate = parseSpTodayHtml(html);
+
+        if (parsedRate) {
           return {
-            rate: autoRate,
-            source: 'sp-today (تلقائي)',
+            rate: parsedRate,
+            source: 'sp-today',
             isAutoFetched: true,
           };
         }
       }
     } catch {
-      // Gracefully catch timeout or CORS failure
+      // Fetch timeout, CORS, or network failure
     }
 
-    // 3. Fallback: No rate found for today
+    // 3. Fallback when sp-today fails
     return {
       rate: null,
       source: 'يدوي',
       isAutoFetched: false,
-      warning: 'تعذر الجلب التلقائي لسعر الصرف لتاريخ اليوم. يُرجى إدخاله يدوياً.',
+      warning: 'تعذر الجلب التلقائي لسعر الصرف من sp-today. يُرجى إدخاله يدوياً.',
     };
   } catch (err) {
     console.warn('Error fetching exchange rate:', err);
@@ -63,7 +88,7 @@ export async function getTodayExchangeRate(): Promise<ExchangeRateResult> {
       rate: null,
       source: 'يدوي',
       isAutoFetched: false,
-      warning: 'تعذر الجلب التلقائي لسعر الصرف. يُرجى إدخاله يدوياً.',
+      warning: 'تعذر الجلب التلقائي لسعر الصرف من sp-today. يُرجى إدخاله يدوياً.',
     };
   }
 }

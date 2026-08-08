@@ -143,6 +143,20 @@ ALTER TABLE public.exchange_rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+
+-- EXCHANGE RATES POLICIES
+CREATE POLICY "Owner full access on exchange_rates" ON public.exchange_rates
+    FOR ALL USING (public.get_current_user_role() = 'owner');
+
+CREATE POLICY "Secretary read on exchange_rates" ON public.exchange_rates
+    FOR SELECT USING (public.get_current_user_role() = 'secretary');
+
+CREATE POLICY "Secretary insert today rate" ON public.exchange_rates
+    FOR INSERT WITH CHECK (
+        public.get_current_user_role() = 'secretary'
+        AND date = CURRENT_DATE
+    );
+
 `;
 
 export const SupabaseSetupModal: React.FC<SupabaseSetupModalProps> = ({ isOpen, onClose }) => {
