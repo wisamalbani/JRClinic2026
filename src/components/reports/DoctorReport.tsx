@@ -17,9 +17,17 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-export const DoctorReportView: React.FC = () => {
+interface DoctorReportViewProps {
+  fixedClinicId?: string;
+  hideClinicSelector?: boolean;
+}
+
+export const DoctorReportView: React.FC<DoctorReportViewProps> = ({
+  fixedClinicId,
+  hideClinicSelector = false,
+}) => {
   const [clinics, setClinics] = useState<Clinic[]>([]);
-  const [selectedClinicId, setSelectedClinicId] = useState<string>('');
+  const [selectedClinicId, setSelectedClinicId] = useState<string>(fixedClinicId || '');
   const [startDate, setStartDate] = useState<string>(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
   );
@@ -32,6 +40,12 @@ export const DoctorReportView: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [report, setReport] = useState<DoctorReportResult | null>(null);
 
+  useEffect(() => {
+    if (fixedClinicId) {
+      setSelectedClinicId(fixedClinicId);
+    }
+  }, [fixedClinicId]);
+
   const fetchClinics = useCallback(async () => {
     setLoadingClinics(true);
     try {
@@ -42,7 +56,7 @@ export const DoctorReportView: React.FC = () => {
 
       if (error) throw error;
       setClinics(data || []);
-      if (data && data.length > 0) {
+      if (!fixedClinicId && data && data.length > 0 && !selectedClinicId) {
         setSelectedClinicId(data[0].id);
       }
     } catch (err) {
@@ -51,7 +65,7 @@ export const DoctorReportView: React.FC = () => {
     } finally {
       setLoadingClinics(false);
     }
-  }, []);
+  }, [fixedClinicId, selectedClinicId]);
 
   useEffect(() => {
     fetchClinics();
@@ -98,29 +112,40 @@ export const DoctorReportView: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
-              اختر العيادة <span className="text-red-400">*</span>
-            </label>
-            {loadingClinics ? (
-              <div className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-400">
-                جاري تحميل العيادات...
+          {!hideClinicSelector ? (
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                اختر العيادة <span className="text-red-400">*</span>
+              </label>
+              {loadingClinics ? (
+                <div className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-400">
+                  جاري تحميل العيادات...
+                </div>
+              ) : (
+                <select
+                  value={selectedClinicId}
+                  onChange={(e) => setSelectedClinicId(e.target.value)}
+                  required
+                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                >
+                  {clinics.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      عيادة {c.number} - {c.doctor_name} ({c.specialty})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">العيادة المرتبطة بحسابك</label>
+              <div className="px-3 py-2.5 bg-slate-900 border border-emerald-500/50 rounded-xl text-xs font-bold text-emerald-400">
+                {clinics.find((c) => c.id === selectedClinicId)
+                  ? `عيادة ${clinics.find((c) => c.id === selectedClinicId)?.number} - ${clinics.find((c) => c.id === selectedClinicId)?.doctor_name}`
+                  : 'جاري جلب بيانات عيادتك...'}
               </div>
-            ) : (
-              <select
-                value={selectedClinicId}
-                onChange={(e) => setSelectedClinicId(e.target.value)}
-                required
-                className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-              >
-                {clinics.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    عيادة {c.number} - {c.doctor_name} ({c.specialty})
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1">من تاريخ</label>

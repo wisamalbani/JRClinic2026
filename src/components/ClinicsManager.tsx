@@ -430,6 +430,10 @@ export const ClinicsManager: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateClinic} className="p-6 space-y-4">
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-200">
+                💡 <strong>تنبيه للـ Owner:</strong> لإنشاء رابط دخول لهذا الطبيب، اطلب منه التسجيل عبر صفحة إنشاء حساب، ثم اربط حسابه من شاشة إدارة المستخدمين.
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">
                   رقم العيادة <span className="text-red-400">*</span>

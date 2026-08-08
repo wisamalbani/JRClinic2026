@@ -29,11 +29,16 @@ import { ClinicsManager } from './ClinicsManager';
 import { ReportsManager } from './reports/ReportsManager';
 import { InventoryManager } from './inventory/InventoryManager';
 import { LaserManager } from './laser/LaserManager';
+import { UsersManager } from './UsersManager';
+import { UnifiedReportsView } from './reports/UnifiedReportsView';
+import { MayaPermissionsManager } from './reports/MayaPermissionsManager';
 
 export const OwnerSecretaryDashboard: React.FC = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'transactions' | 'suspense' | 'categories' | 'clinics' | 'reports' | 'inventory' | 'laser' | 'overview'>('transactions');
+  const [activeTab, setActiveTab] = useState<
+    'transactions' | 'suspense' | 'categories' | 'clinics' | 'reports' | 'inventory' | 'laser' | 'unified' | 'users' | 'maya_permissions' | 'overview'
+  >('transactions');
 
 
   const [stats, setStats] = useState({
@@ -214,6 +219,46 @@ export const OwnerSecretaryDashboard: React.FC = () => {
             <span>صندوق قسم الليزر (المرحلة 6)</span>
           </button>
 
+          <button
+            onClick={() => setActiveTab('unified')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'unified'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-emerald-400" />
+            <span>التقارير الموحّدة (المرحلة 7)</span>
+          </button>
+
+          {isOwner && (
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'users'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              <Users className="w-4 h-4 text-amber-300" />
+              <span>إدارة المستخدمين والربط البرمجي</span>
+            </button>
+          )}
+
+          {isOwner && (
+            <button
+              onClick={() => setActiveTab('maya_permissions')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'maya_permissions'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              <Shield className="w-4 h-4 text-purple-300" />
+              <span>صلاحيات تقارير مايا</span>
+            </button>
+          )}
+
           {isOwner && (
             <button
               onClick={() => setActiveTab('clinics')}
@@ -279,7 +324,16 @@ export const OwnerSecretaryDashboard: React.FC = () => {
         {/* TAB 7: Phase 6 Laser Fund */}
         {activeTab === 'laser' && <LaserManager userRole={profile?.role || 'secretary'} />}
 
-        {/* TAB 8: Overview & Phase 1 Checks */}
+        {/* TAB 8: Phase 7 Unified Reports Window */}
+        {activeTab === 'unified' && <UnifiedReportsView />}
+
+        {/* TAB 9: Phase 7 Users Management (Owner only) */}
+        {activeTab === 'users' && isOwner && <UsersManager />}
+
+        {/* TAB 10: Phase 7 Maya Report Permissions (Owner only) */}
+        {activeTab === 'maya_permissions' && isOwner && <MayaPermissionsManager />}
+
+        {/* TAB 11: Overview & Phase 1 Checks */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Welcome Banner */}

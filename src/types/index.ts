@@ -217,4 +217,37 @@ export interface LaserWithdrawal {
   laser_staff?: LaserStaff;
 }
 
+export interface ReportPermission {
+  id: string;
+  user_id: string;
+  report_key: string;
+  is_enabled: boolean;
+  created_at?: string;
+}
+
+export const FIXED_REPORT_KEYS = {
+  BOX_CENTER: 'box_center',
+  BOX_LASER: 'box_laser',
+  LASER_MONTHLY_REPORT: 'laser_monthly_report',
+  SUSPENSE_TRANSACTIONS: 'suspense_transactions',
+  FREE_REPORTS: 'free_reports',
+} as const;
+
+export const FIXED_REPORT_LABELS: Record<string, { label: string; category: string }> = {
+  [FIXED_REPORT_KEYS.BOX_CENTER]: { label: 'كشف صندوق المركز', category: 'الصناديق' },
+  [FIXED_REPORT_KEYS.BOX_LASER]: { label: 'كشف صندوق الليزر', category: 'الصناديق' },
+  [FIXED_REPORT_KEYS.LASER_MONTHLY_REPORT]: { label: 'تقرير الليزر الشهري', category: 'تقارير الليزر' },
+  [FIXED_REPORT_KEYS.SUSPENSE_TRANSACTIONS]: { label: 'الحركات المعلقة', category: 'الحركات' },
+  [FIXED_REPORT_KEYS.FREE_REPORTS]: { label: 'تقارير حرة', category: 'أخرى' },
+};
+
+export function getClinicReportKey(clinicId: string): string {
+  return `clinic_${clinicId}`;
+}
+
+export function getRepReportKey(repId: string): string {
+  return `rep_${repId}`;
+}
+
+
 

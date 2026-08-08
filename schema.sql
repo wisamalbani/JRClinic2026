@@ -622,4 +622,31 @@ CREATE POLICY "Secretary insert laser_transactions" ON public.laser_transactions
 CREATE POLICY "Secretary read laser_withdrawals" ON public.laser_withdrawals FOR SELECT USING (public.get_current_user_role() = 'secretary');
 CREATE POLICY "Secretary insert laser_withdrawals" ON public.laser_withdrawals FOR INSERT WITH CHECK (public.get_current_user_role() = 'secretary');
 
+-- ============================================================================
+-- PHASE 7: REPORT PERMISSIONS & DOCTOR/REP USER LINKING
+-- ============================================================================
+
+-- 1. REPORT PERMISSIONS TABLE
+CREATE TABLE IF NOT EXISTS public.report_permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    report_key TEXT NOT NULL,
+    is_enabled BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, report_key)
+);
+
+-- RLS POLICIES FOR REPORT PERMISSIONS
+ALTER TABLE public.report_permissions ENABLE ROW LEVEL SECURITY;
+
+-- Owner: Full Access (SELECT, INSERT, UPDATE, DELETE)
+CREATE POLICY "Owner full access report_permissions" 
+    ON public.report_permissions FOR ALL 
+    USING (public.get_current_user_role() = 'owner');
+
+-- Users: Read own permission rows (user_id = current auth user ID)
+CREATE POLICY "Users read own report_permissions" 
+    ON public.report_permissions FOR SELECT 
+    USING (user_id = auth.uid());
+
 

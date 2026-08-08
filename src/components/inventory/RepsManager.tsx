@@ -99,6 +99,10 @@ export const RepsManager: React.FC = () => {
               <h3 className="font-extrabold text-sm text-white">إضافة مندوب مبيعات جديد</h3>
             </div>
 
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-200">
+              💡 <strong>تنبيه للـ Owner:</strong> لإنشاء رابط دخول لهذا المندوب، اطلب منه التسجيل عبر صفحة إنشاء حساب، ثم اربط حسابه من شاشة إدارة المستخدمين.
+            </div>
+
             {errorMsg && (
               <div className="p-3 bg-red-950/60 border border-red-500/40 rounded-xl text-xs text-red-300 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />

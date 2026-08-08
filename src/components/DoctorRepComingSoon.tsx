@@ -1,24 +1,30 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Clock, LogOut, ShieldAlert, User, Stethoscope, Briefcase } from 'lucide-react';
+import { DoctorReportView } from './reports/DoctorReport';
+import { RepStatementView } from './inventory/RepStatementView';
+import { LogOut, Stethoscope, Briefcase, AlertCircle, UserCheck } from 'lucide-react';
 
-export const DoctorRepComingSoon: React.FC = () => {
+export const DoctorRepDashboard: React.FC = () => {
   const { profile, user, signOut } = useAuth();
 
   const isDoctor = profile?.role === 'doctor';
-  const roleName = isDoctor ? 'طبيب' : 'مندوب';
+  const isRep = profile?.role === 'rep';
+  const roleName = isDoctor ? 'طبيب' : isRep ? 'مندوب' : 'مستخدم';
+
+  const linkedClinicId = profile?.linked_clinic_id;
+  const linkedRepId = profile?.linked_rep_id;
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 dir-rtl font-sans flex flex-col justify-between p-4 sm:p-6">
       {/* Header Bar */}
-      <header className="w-full max-w-4xl mx-auto flex items-center justify-between py-4 border-b border-slate-800">
+      <header className="w-full max-w-7xl mx-auto flex items-center justify-between py-4 border-b border-slate-800 mb-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
             {isDoctor ? <Stethoscope className="w-5 h-5" /> : <Briefcase className="w-5 h-5" />}
           </div>
           <div>
             <h1 className="text-base sm:text-lg font-extrabold text-white">نظام المحاسبة للمركز الطبي</h1>
-            <p className="text-xs text-slate-400">بوابة الحسابات الخاصة بـ {roleName}</p>
+            <p className="text-xs text-slate-400">بوابة الحسابات الخاصة بـ {roleName}: {profile?.email || user?.email}</p>
           </div>
         </div>
 
@@ -31,60 +37,50 @@ export const DoctorRepComingSoon: React.FC = () => {
         </button>
       </header>
 
-      {/* Main Content Card */}
-      <main className="my-auto w-full max-w-lg mx-auto text-center space-y-6">
-        <div className="bg-slate-800/90 border border-slate-700/80 rounded-3xl p-8 shadow-2xl space-y-6">
-          
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 mb-2">
-            <Clock className="w-8 h-8 animate-pulse" />
-          </div>
-
-          <div className="space-y-2">
-            <span className="inline-block px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-bold">
-              صفحة العرض الخاصة بـ {roleName}
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              قريباً في المرحلة القادمة
-            </h2>
-            <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
-              حسابك مفعل بنجاح على نظام المحاسبة للمركز الطبي. سيتم إطلاق واجهة {roleName} التقاريرية المستقلة في مرحلة قادمة وفق الخطة الزمنية للمشروع.
-            </p>
-          </div>
-
-          {/* User Account Info */}
-          <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-700/60 text-right space-y-2 text-xs">
-            <div className="flex items-center justify-between text-slate-400 border-b border-slate-800 pb-2">
-              <span className="flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-purple-400" />
-                البريد الإلكتروني:
-              </span>
-              <span className="font-mono text-slate-200 dir-ltr">{profile?.email || user?.email}</span>
-            </div>
-
-            <div className="flex items-center justify-between text-slate-400 pt-1">
-              <span>الدور المحدد بالنظام:</span>
-              <span className="font-bold text-purple-300">{roleName} ({profile?.role})</span>
-            </div>
-
-            {isDoctor && profile?.linked_clinic_id && (
-              <div className="flex items-center justify-between text-slate-400 pt-1">
-                <span>العيادة المرتبطة:</span>
-                <span className="font-mono text-slate-200">{profile.linked_clinic_id}</span>
+      {/* Main Content Area */}
+      <main className="w-full max-w-7xl mx-auto mb-auto space-y-6">
+        {/* DOCTOR VIEW */}
+        {isDoctor && (
+          <>
+            {linkedClinicId ? (
+              <DoctorReportView fixedClinicId={linkedClinicId} hideClinicSelector={true} />
+            ) : (
+              <div className="bg-slate-800 border border-amber-500/30 rounded-2xl p-8 text-center max-w-lg mx-auto space-y-4">
+                <AlertCircle className="w-12 h-12 text-amber-400 mx-auto" />
+                <h2 className="text-lg font-bold text-white">لم يتم ربط حسابك بفرع عيادة محددة بعد</h2>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  حسابك مفعّل برتبة (طبيب)، ولكن يتوجب على مالك المركز (Owner) ربط حسابك بعيادتك من شاشة <strong>"إدارة المستخدمين"</strong>.
+                </p>
               </div>
             )}
-          </div>
+          </>
+        )}
 
-          <div className="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800 text-[11px] text-slate-500 flex items-center justify-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-slate-400 shrink-0" />
-            <span>صلاحياتك محصورة ببياناتك فقط بموجب سياسة Row Level Security (RLS)</span>
-          </div>
-        </div>
+        {/* REP VIEW */}
+        {isRep && (
+          <>
+            {linkedRepId ? (
+              <RepStatementView fixedRepId={linkedRepId} hideRepSelector={true} />
+            ) : (
+              <div className="bg-slate-800 border border-amber-500/30 rounded-2xl p-8 text-center max-w-lg mx-auto space-y-4">
+                <AlertCircle className="w-12 h-12 text-amber-400 mx-auto" />
+                <h2 className="text-lg font-bold text-white">لم يتم ربط حسابك بمندوب مبيعات محدد بعد</h2>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  حسابك مفعّل برتبة (مندوب)، ولكن يتوجب على مالك المركز (Owner) ربط حسابك بسجل المندوب الخاص بك من شاشة <strong>"إدارة المستخدمين"</strong>.
+                </p>
+              </div>
+            )}
+          </>
+        )}
       </main>
 
       {/* Footer */}
-      <footer className="w-full max-w-lg mx-auto text-center text-xs text-slate-500">
-        نظام المحاسبة - المرحلة الأولى (الأساس) &copy; 2026
+      <footer className="w-full max-w-7xl mx-auto text-center text-xs text-slate-500 pt-8 border-t border-slate-800/60 mt-8">
+        نظام المحاسبة - بوابة {roleName} &copy; 2026
       </footer>
     </div>
   );
 };
+
+// Re-export alias for backwards compatibility
+export const DoctorRepComingSoon = DoctorRepDashboard;

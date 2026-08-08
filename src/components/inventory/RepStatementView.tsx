@@ -16,9 +16,17 @@ import {
   TrendingUp,
 } from 'lucide-react';
 
-export const RepStatementView: React.FC = () => {
+interface RepStatementViewProps {
+  fixedRepId?: string;
+  hideRepSelector?: boolean;
+}
+
+export const RepStatementView: React.FC<RepStatementViewProps> = ({
+  fixedRepId,
+  hideRepSelector = false,
+}) => {
   const [reps, setReps] = useState<Rep[]>([]);
-  const [selectedRepId, setSelectedRepId] = useState<string>('');
+  const [selectedRepId, setSelectedRepId] = useState<string>(fixedRepId || '');
   const [loadingReps, setLoadingReps] = useState<boolean>(true);
 
   // Statement Data
@@ -36,13 +44,19 @@ export const RepStatementView: React.FC = () => {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (fixedRepId) {
+      setSelectedRepId(fixedRepId);
+    }
+  }, [fixedRepId]);
+
   const fetchReps = useCallback(async () => {
     setLoadingReps(true);
     try {
       const { data } = await supabase.from('reps').select('*').order('name', { ascending: true });
       if (data) {
         setReps(data);
-        if (data.length > 0 && !selectedRepId) {
+        if (!fixedRepId && data.length > 0 && !selectedRepId) {
           setSelectedRepId(data[0].id);
         }
       }
@@ -51,7 +65,7 @@ export const RepStatementView: React.FC = () => {
     } finally {
       setLoadingReps(false);
     }
-  }, [selectedRepId]);
+  }, [fixedRepId, selectedRepId]);
 
   useEffect(() => {
     fetchReps();
@@ -184,17 +198,23 @@ export const RepStatementView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <select
-            value={selectedRepId}
-            onChange={(e) => setSelectedRepId(e.target.value)}
-            className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-100 font-bold focus:outline-none focus:border-amber-500 min-w-[200px]"
-          >
-            {reps.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name} {r.phone ? `(${r.phone})` : ''}
-              </option>
-            ))}
-          </select>
+          {!hideRepSelector ? (
+            <select
+              value={selectedRepId}
+              onChange={(e) => setSelectedRepId(e.target.value)}
+              className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-100 font-bold focus:outline-none focus:border-amber-500 min-w-[200px]"
+            >
+              {reps.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} {r.phone ? `(${r.phone})` : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="px-3 py-2 bg-slate-900 border border-amber-500/50 rounded-xl text-xs font-bold text-amber-400">
+              المندوب: {reps.find((r) => r.id === selectedRepId)?.name || 'جاري جلب اسم المندوب...'}
+            </div>
+          )}
 
           <button
             onClick={() => setShowPaymentModal(true)}
