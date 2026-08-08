@@ -1,0 +1,6 @@
+{
+  "name": "Medical Center Accounting System",
+  "description": "نظام محاسبة ويب لمركز طبي باستخدام React و Supabase - المرحلة الأولى (الأساس)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
