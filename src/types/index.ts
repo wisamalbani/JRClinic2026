@@ -64,6 +64,7 @@ export interface Transaction {
   clinic_id?: string;
   expense_category_id?: string;
   is_suspense: boolean;
+  is_cash_movement?: boolean;
   description?: string;
   created_by?: string;
   created_at?: string;

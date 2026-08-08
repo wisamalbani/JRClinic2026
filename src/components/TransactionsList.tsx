@@ -281,7 +281,14 @@ export const TransactionsList: React.FC = () => {
                     </td>
 
                     {/* Cash Box */}
-                    <td className="p-4">{getCashBoxName(tx.cash_box_id)}</td>
+                    <td className="p-4">
+                      {getCashBoxName(tx.cash_box_id)}
+                      {tx.is_cash_movement === false && (
+                        <span className="block text-[10px] text-purple-400 font-bold">
+                          (استهلاك مواد - غير نقدي)
+                        </span>
+                      )}
+                    </td>
 
                     {/* Clinic / Category */}
                     <td className="p-4 space-y-0.5">

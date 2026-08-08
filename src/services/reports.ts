@@ -430,11 +430,12 @@ export async function getCashBoxStatementReport(
     throw cbErr || new Error('الصندوق غير موجود');
   }
 
-  // 2. Calculate Opening Balances before startDate
+  // 2. Calculate Opening Balances before startDate (actual cash movements only)
   const { data: priorTx, error: priorErr } = await supabase
     .from('transactions')
     .select('*')
     .eq('cash_box_id', cashBoxId)
+    .eq('is_cash_movement', true)
     .lt('date', startDate);
 
   if (priorErr) {
@@ -445,6 +446,7 @@ export async function getCashBoxStatementReport(
   let openingBalanceUSD = 0;
 
   (priorTx || []).forEach((tx) => {
+    if (tx.is_cash_movement === false) return;
     const normCurr = normalizeCurrency(tx.currency);
     const amt = Number(tx.amount);
     const multiplier = tx.type === 'income' ? 1 : tx.type === 'expense' ? -1 : 1; // transfer logic handled as logged
@@ -456,11 +458,12 @@ export async function getCashBoxStatementReport(
     }
   });
 
-  // 3. Transactions inside range [startDate, endDate]
+  // 3. Transactions inside range [startDate, endDate] (actual cash movements only)
   const { data: rangeTx, error: rangeErr } = await supabase
     .from('transactions')
     .select('*')
     .eq('cash_box_id', cashBoxId)
+    .eq('is_cash_movement', true)
     .gte('date', startDate)
     .lte('date', endDate)
     .order('date', { ascending: true })

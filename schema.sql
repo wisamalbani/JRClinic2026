@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     clinic_id UUID REFERENCES public.clinics(id) ON DELETE SET NULL,
     expense_category_id UUID REFERENCES public.expense_categories(id) ON DELETE SET NULL,
     is_suspense BOOLEAN NOT NULL DEFAULT false,
+    is_cash_movement BOOLEAN NOT NULL DEFAULT true,
     description TEXT,
     created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -439,7 +440,7 @@ BEGIN
         v_description := v_description || ' (' || NEW.notes || ')';
     END IF;
 
-    -- 8. Auto insert transaction (Expense)
+    -- 8. Auto insert transaction (Expense) - Non-cash movement
     INSERT INTO public.transactions (
         cash_box_id,
         date,
@@ -450,6 +451,7 @@ BEGIN
         clinic_id,
         expense_category_id,
         is_suspense,
+        is_cash_movement,
         description,
         created_by
     ) VALUES (
@@ -462,6 +464,7 @@ BEGIN
         NEW.clinic_id,
         v_cat_id,
         false,
+        false, -- is_cash_movement = false (لا يؤثر على رصيد الصندوق الكاش الفعلي)
         v_description,
         NEW.created_by
     );
@@ -499,4 +502,7 @@ CREATE POLICY "Secretary read material_consumption" ON public.material_consumpti
 
 CREATE POLICY "Secretary insert rep_payments" ON public.rep_payments FOR INSERT WITH CHECK (public.get_current_user_role() = 'secretary');
 CREATE POLICY "Secretary read rep_payments" ON public.rep_payments FOR SELECT USING (public.get_current_user_role() = 'secretary');
+
+-- Ensure is_cash_movement column exists on transactions table
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS is_cash_movement BOOLEAN NOT NULL DEFAULT true;
 
