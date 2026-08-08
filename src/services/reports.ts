@@ -299,16 +299,52 @@ export async function getDoctorReport(
   let totalExpenseSYP = 0;
   let totalExpenseUSD = 0;
 
-  let totalDoctorShareSYP = 0;
-  let totalCenterShareSYP = 0;
-  let totalDoctorShareUSD = 0;
-  let totalCenterShareUSD = 0;
-
+  // Pass 1: Calculate total revenues and expenses for the period
   (txData || []).forEach((tx) => {
     const normCurr = normalizeCurrency(tx.currency);
     const amt = Number(tx.amount);
 
     if (tx.type === 'income') {
+      if (normCurr === 'SYP') {
+        totalRevenueSYP += amt;
+      } else {
+        totalRevenueUSD += amt;
+      }
+    } else if (tx.type === 'expense') {
+      if (normCurr === 'SYP') {
+        totalExpenseSYP += amt;
+      } else {
+        totalExpenseUSD += amt;
+      }
+
+      expenses.push({
+        transactionId: tx.id,
+        date: tx.date,
+        categoryName: tx.expense_category_id ? catMap.get(tx.expense_category_id) || 'مصروف عام' : 'مصروف عام',
+        description: tx.description,
+        amountSYP: normCurr === 'SYP' ? amt : 0,
+        amountUSD: normCurr === 'USD' ? amt : 0,
+      });
+    }
+  });
+
+  const netRevenueSYP = totalRevenueSYP - totalExpenseSYP;
+  const netRevenueUSD = totalRevenueUSD - totalExpenseUSD;
+
+  let totalDoctorShareSYP = 0;
+  let totalCenterShareSYP = 0;
+  let totalDoctorShareUSD = 0;
+  let totalCenterShareUSD = 0;
+
+  // Expense ratios for proportional deduction from each income transaction
+  const expenseRatioSYP = totalRevenueSYP > 0 ? totalExpenseSYP / totalRevenueSYP : 0;
+  const expenseRatioUSD = totalRevenueUSD > 0 ? totalExpenseUSD / totalRevenueUSD : 0;
+
+  // Pass 2: Calculate doctor and center shares based on net revenue contribution of each income transaction
+  (txData || []).forEach((tx) => {
+    if (tx.type === 'income') {
+      const normCurr = normalizeCurrency(tx.currency);
+      const amt = Number(tx.amount);
       const effectiveRate = getEffectiveRateForDate(history, tx.date);
       const doctorPct = effectiveRate / 100;
       const centerPct = (100 - effectiveRate) / 100;
@@ -322,16 +358,16 @@ export async function getDoctorReport(
 
       if (normCurr === 'SYP') {
         amtSYP = amt;
-        totalRevenueSYP += amtSYP;
-        docShareSYP = amtSYP * doctorPct;
-        cenShareSYP = amtSYP * centerPct;
+        const netContributionSYP = amtSYP * (1 - expenseRatioSYP);
+        docShareSYP = netContributionSYP * doctorPct;
+        cenShareSYP = netContributionSYP * centerPct;
         totalDoctorShareSYP += docShareSYP;
         totalCenterShareSYP += cenShareSYP;
       } else {
         amtUSD = amt;
-        totalRevenueUSD += amtUSD;
-        docShareUSD = amtUSD * doctorPct;
-        cenShareUSD = amtUSD * centerPct;
+        const netContributionUSD = amtUSD * (1 - expenseRatioUSD);
+        docShareUSD = netContributionUSD * doctorPct;
+        cenShareUSD = netContributionUSD * centerPct;
         totalDoctorShareUSD += docShareUSD;
         totalCenterShareUSD += cenShareUSD;
       }
@@ -348,34 +384,11 @@ export async function getDoctorReport(
         doctorShareUSD: docShareUSD,
         centerShareUSD: cenShareUSD,
       });
-    } else if (tx.type === 'expense') {
-      let amtSYP = 0;
-      let amtUSD = 0;
-
-      if (normCurr === 'SYP') {
-        amtSYP = amt;
-        totalExpenseSYP += amtSYP;
-      } else {
-        amtUSD = amt;
-        totalExpenseUSD += amtUSD;
-      }
-
-      expenses.push({
-        transactionId: tx.id,
-        date: tx.date,
-        categoryName: tx.expense_category_id ? catMap.get(tx.expense_category_id) || 'مصروف عام' : 'مصروف عام',
-        description: tx.description,
-        amountSYP: amtSYP,
-        amountUSD: amtUSD,
-      });
     }
   });
 
-  const netRevenueSYP = totalRevenueSYP - totalExpenseSYP;
-  const netRevenueUSD = totalRevenueUSD - totalExpenseUSD;
-
-  const netDoctorRemainingSYP = totalDoctorShareSYP - totalExpenseSYP;
-  const netDoctorRemainingUSD = totalDoctorShareUSD - totalExpenseUSD;
+  const netDoctorRemainingSYP = totalDoctorShareSYP;
+  const netDoctorRemainingUSD = totalDoctorShareUSD;
 
   return {
     clinic,

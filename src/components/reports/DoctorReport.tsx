@@ -397,7 +397,7 @@ export const DoctorReportView: React.FC = () => {
                   ${report.netDoctorRemainingUSD.toFixed(2)}
                 </div>
                 <p className="text-[10px] text-emerald-400/80 mt-1">
-                  (حصة الطبيب الإجمالية مطروحاً منها مصاريف العيادة)
+                  (صافي مستحق الطبيب بعد تطبيق النسبة على صافي إيراد العيادة)
                 </p>
               </div>
             </div>
