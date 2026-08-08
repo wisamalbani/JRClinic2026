@@ -151,3 +151,70 @@ export interface RepPayment {
   reps?: Rep;
 }
 
+export interface LaserStaff {
+  id: string;
+  name: string;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export interface LaserStaffPercentageHistory {
+  id: string;
+  staff_id: string;
+  percentage: number;
+  effective_from: string;
+  created_by?: string;
+  created_at?: string;
+  laser_staff?: LaserStaff;
+}
+
+export interface LaserStaffSalaryHistory {
+  id: string;
+  staff_id: string;
+  amount: number;
+  currency: string;
+  effective_from: string;
+  created_by?: string;
+  created_at?: string;
+  laser_staff?: LaserStaff;
+}
+
+export interface LaserShotRateHistory {
+  id: string;
+  rate_per_shot: number;
+  currency: string;
+  effective_from: string;
+  created_by?: string;
+  created_at?: string;
+}
+
+export interface LaserTransaction {
+  id: string;
+  date: string;
+  type: 'income' | 'expense';
+  patient_name?: string | null;
+  staff_id?: string | null;
+  shots_count?: number | null;
+  amount: number;
+  currency: string;
+  exchange_rate_used: number;
+  description?: string | null;
+  created_by?: string | null;
+  created_at?: string;
+  laser_staff?: LaserStaff;
+}
+
+export interface LaserWithdrawal {
+  id: string;
+  date: string;
+  beneficiary_type: 'staff' | 'doctor' | 'center';
+  staff_id?: string | null;
+  amount: number;
+  currency: string;
+  notes?: string | null;
+  created_by?: string | null;
+  created_at?: string;
+  laser_staff?: LaserStaff;
+}
+
+

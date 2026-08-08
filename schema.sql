@@ -506,3 +506,120 @@ CREATE POLICY "Secretary read rep_payments" ON public.rep_payments FOR SELECT US
 -- Ensure is_cash_movement column exists on transactions table
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS is_cash_movement BOOLEAN NOT NULL DEFAULT true;
 
+-- ============================================================================
+-- PHASE 6: LASER FUND MANAGEMENT (صندوق الليزر المستقل)
+-- ============================================================================
+
+-- 1. LASER STAFF (كادر الليزر)
+CREATE TABLE IF NOT EXISTS public.laser_staff (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Seed default staff 'روان' and 'عبير' if not existing
+INSERT INTO public.laser_staff (name)
+SELECT 'روان' WHERE NOT EXISTS (SELECT 1 FROM public.laser_staff WHERE name = 'روان');
+
+INSERT INTO public.laser_staff (name)
+SELECT 'عبير' WHERE NOT EXISTS (SELECT 1 FROM public.laser_staff WHERE name = 'عبير');
+
+-- 2. LASER STAFF PERCENTAGE HISTORY (نسبة الصبية)
+CREATE TABLE IF NOT EXISTS public.laser_staff_percentage_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    staff_id UUID NOT NULL REFERENCES public.laser_staff(id) ON DELETE CASCADE,
+    percentage NUMERIC(5,2) NOT NULL CHECK (percentage >= 0 AND percentage <= 100),
+    effective_from DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 3. LASER STAFF SALARY HISTORY (راتب الصبية)
+CREATE TABLE IF NOT EXISTS public.laser_staff_salary_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    staff_id UUID NOT NULL REFERENCES public.laser_staff(id) ON DELETE CASCADE,
+    amount NUMERIC(14,2) NOT NULL CHECK (amount >= 0),
+    currency VARCHAR(10) NOT NULL DEFAULT 'SYP',
+    effective_from DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 4. LASER SHOT RATE HISTORY (سعر الضربة لصيانة الجهاز)
+CREATE TABLE IF NOT EXISTS public.laser_shot_rate_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rate_per_shot NUMERIC(14,4) NOT NULL CHECK (rate_per_shot >= 0),
+    currency VARCHAR(10) NOT NULL DEFAULT 'SYP',
+    effective_from DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 5. LASER TRANSACTIONS (حركات صندوق الليزر: قبض / صرف)
+CREATE TABLE IF NOT EXISTS public.laser_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('income', 'expense')),
+    patient_name VARCHAR(255),
+    staff_id UUID REFERENCES public.laser_staff(id) ON DELETE SET NULL,
+    shots_count INT CHECK (shots_count IS NULL OR shots_count >= 0),
+    amount NUMERIC(14,2) NOT NULL CHECK (amount >= 0),
+    currency VARCHAR(10) NOT NULL DEFAULT 'SYP',
+    exchange_rate_used NUMERIC(14,4) NOT NULL DEFAULT 1.0,
+    description TEXT,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT check_income_laser_fields CHECK (
+        (type = 'income' AND patient_name IS NOT NULL AND staff_id IS NOT NULL AND shots_count IS NOT NULL) OR
+        (type = 'expense')
+    )
+);
+
+-- 6. LASER WITHDRAWALS (سحوبات صندوق الليزر)
+CREATE TABLE IF NOT EXISTS public.laser_withdrawals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    beneficiary_type VARCHAR(20) NOT NULL CHECK (beneficiary_type IN ('staff', 'doctor', 'center')),
+    staff_id UUID REFERENCES public.laser_staff(id) ON DELETE SET NULL,
+    amount NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+    currency VARCHAR(10) NOT NULL DEFAULT 'SYP',
+    notes TEXT,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT check_laser_withdrawal_staff CHECK (
+        (beneficiary_type = 'staff' AND staff_id IS NOT NULL) OR
+        (beneficiary_type IN ('doctor', 'center') AND staff_id IS NULL)
+    )
+);
+
+-- RLS POLICIES FOR PHASE 6
+ALTER TABLE public.laser_staff ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.laser_staff_percentage_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.laser_staff_salary_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.laser_shot_rate_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.laser_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.laser_withdrawals ENABLE ROW LEVEL SECURITY;
+
+-- OWNER: Full access on all laser tables
+CREATE POLICY "Owner full access laser_staff" ON public.laser_staff FOR ALL USING (public.get_current_user_role() = 'owner');
+CREATE POLICY "Owner full access laser_staff_percentage_history" ON public.laser_staff_percentage_history FOR ALL USING (public.get_current_user_role() = 'owner');
+CREATE POLICY "Owner full access laser_staff_salary_history" ON public.laser_staff_salary_history FOR ALL USING (public.get_current_user_role() = 'owner');
+CREATE POLICY "Owner full access laser_shot_rate_history" ON public.laser_shot_rate_history FOR ALL USING (public.get_current_user_role() = 'owner');
+CREATE POLICY "Owner full access laser_transactions" ON public.laser_transactions FOR ALL USING (public.get_current_user_role() = 'owner');
+CREATE POLICY "Owner full access laser_withdrawals" ON public.laser_withdrawals FOR ALL USING (public.get_current_user_role() = 'owner');
+
+-- SECRETARY: SELECT on staff & histories
+CREATE POLICY "Secretary read laser_staff" ON public.laser_staff FOR SELECT USING (public.get_current_user_role() = 'secretary');
+CREATE POLICY "Secretary read laser_staff_percentage_history" ON public.laser_staff_percentage_history FOR SELECT USING (public.get_current_user_role() = 'secretary');
+CREATE POLICY "Secretary read laser_staff_salary_history" ON public.laser_staff_salary_history FOR SELECT USING (public.get_current_user_role() = 'secretary');
+CREATE POLICY "Secretary read laser_shot_rate_history" ON public.laser_shot_rate_history FOR SELECT USING (public.get_current_user_role() = 'secretary');
+
+-- SECRETARY: INSERT + SELECT on laser_transactions & laser_withdrawals
+CREATE POLICY "Secretary read laser_transactions" ON public.laser_transactions FOR SELECT USING (public.get_current_user_role() = 'secretary');
+CREATE POLICY "Secretary insert laser_transactions" ON public.laser_transactions FOR INSERT WITH CHECK (public.get_current_user_role() = 'secretary');
+
+CREATE POLICY "Secretary read laser_withdrawals" ON public.laser_withdrawals FOR SELECT USING (public.get_current_user_role() = 'secretary');
+CREATE POLICY "Secretary insert laser_withdrawals" ON public.laser_withdrawals FOR INSERT WITH CHECK (public.get_current_user_role() = 'secretary');
+
+

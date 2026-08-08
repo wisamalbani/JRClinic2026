@@ -19,6 +19,7 @@ import {
   Tag,
   BarChart3,
   Boxes,
+  Sparkles,
 } from 'lucide-react';
 import { SupabaseSetupModal } from './SupabaseSetupModal';
 import { TransactionsList } from './TransactionsList';
@@ -27,11 +28,13 @@ import { ExpenseCategoriesManager } from './ExpenseCategoriesManager';
 import { ClinicsManager } from './ClinicsManager';
 import { ReportsManager } from './reports/ReportsManager';
 import { InventoryManager } from './inventory/InventoryManager';
+import { LaserManager } from './laser/LaserManager';
 
 export const OwnerSecretaryDashboard: React.FC = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'transactions' | 'suspense' | 'categories' | 'clinics' | 'reports' | 'inventory' | 'overview'>('transactions');
+  const [activeTab, setActiveTab] = useState<'transactions' | 'suspense' | 'categories' | 'clinics' | 'reports' | 'inventory' | 'laser' | 'overview'>('transactions');
+
 
   const [stats, setStats] = useState({
     clinicsCount: 0,
@@ -199,6 +202,18 @@ export const OwnerSecretaryDashboard: React.FC = () => {
             <span>المواد والمخزون (المرحلة 5)</span>
           </button>
 
+          <button
+            onClick={() => setActiveTab('laser')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'laser'
+                ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>صندوق قسم الليزر (المرحلة 6)</span>
+          </button>
+
           {isOwner && (
             <button
               onClick={() => setActiveTab('clinics')}
@@ -261,7 +276,10 @@ export const OwnerSecretaryDashboard: React.FC = () => {
         {/* TAB 6: Phase 5 Inventory & Materials */}
         {activeTab === 'inventory' && <InventoryManager />}
 
-        {/* TAB 4: Overview & Phase 1 Checks */}
+        {/* TAB 7: Phase 6 Laser Fund */}
+        {activeTab === 'laser' && <LaserManager userRole={profile?.role || 'secretary'} />}
+
+        {/* TAB 8: Overview & Phase 1 Checks */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Welcome Banner */}
