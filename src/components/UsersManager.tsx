@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile, Role, Clinic, Rep, LaserStaff } from '../types';
-import { getAllUsers, updateUserLinking } from '../services/usersAndPermissions';
+import { getAllUsers, updateUserLinking, deleteUserAccount } from '../services/usersAndPermissions';
 import {
   Users,
   UserPlus,
@@ -19,6 +19,7 @@ import {
   Eye,
   AlertCircle,
   UserCheck,
+  Trash2,
 } from 'lucide-react';
 
 export const UsersManager: React.FC = () => {
@@ -28,6 +29,9 @@ export const UsersManager: React.FC = () => {
   const [laserStaffList, setLaserStaffList] = useState<LaserStaff[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+  const [currentUserAuthId, setCurrentUserAuthId] = useState<string | null>(null);
   const [creatingUser, setCreatingUser] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -55,8 +59,44 @@ export const UsersManager: React.FC = () => {
   >({});
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) {
+        setCurrentUserAuthId(data.user.id);
+      }
+    });
     loadData();
   }, []);
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    if (currentUserAuthId && (userToDelete.auth_id === currentUserAuthId || userToDelete.id === currentUserAuthId)) {
+      setMessage({ type: 'error', text: 'لا يمكنك حذف حسابك الشخصي (حساب المالك الحالي)' });
+      setUserToDelete(null);
+      return;
+    }
+
+    setDeletingUserId(userToDelete.id);
+    setMessage(null);
+
+    try {
+      await deleteUserAccount(userToDelete.id, userToDelete.auth_id);
+      setMessage({
+        type: 'success',
+        text: `تم حذف حساب المستخدم (${userToDelete.email}) بنجاح!`,
+      });
+      setUserToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      console.error('Error deleting user:', err);
+      setMessage({
+        type: 'error',
+        text: `خطأ أثناء حذف الحساب: ${err.message || 'فشل حذف المستخدم'}`,
+      });
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -499,7 +539,7 @@ export const UsersManager: React.FC = () => {
                   <th className="p-3.5">الدور / الصلاحية</th>
                   <th className="p-3.5">الربط البرمجي (عيادة / مندوب / ليزر)</th>
                   <th className="p-3.5 text-center">حالة الحساب</th>
-                  <th className="p-3.5 text-center">تحديث البيانات</th>
+                  <th className="p-3.5 text-center">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
@@ -511,6 +551,8 @@ export const UsersManager: React.FC = () => {
                     linked_laser_staff_id: u.linked_laser_staff_id,
                     is_active: u.is_active,
                   };
+
+                  const isCurrentOwner = !!currentUserAuthId && (u.auth_id === currentUserAuthId || u.id === currentUserAuthId);
 
                   return (
                     <tr key={u.id} className="hover:bg-slate-700/30 transition-colors">
@@ -605,15 +647,27 @@ export const UsersManager: React.FC = () => {
                         </button>
                       </td>
 
-                      {/* Save Button */}
+                      {/* Action Buttons: Save & Delete */}
                       <td className="p-3.5 text-center">
-                        <button
-                          onClick={() => handleSaveUser(u)}
-                          disabled={savingUserId === u.id}
-                          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
-                        >
-                          {savingUserId === u.id ? 'جاري الحفظ...' : 'حفظ'}
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleSaveUser(u)}
+                            disabled={savingUserId === u.id || deletingUserId === u.id}
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                          >
+                            {savingUserId === u.id ? 'جاري الحفظ...' : 'حفظ'}
+                          </button>
+
+                          <button
+                            onClick={() => setUserToDelete(u)}
+                            disabled={deletingUserId === u.id || isCurrentOwner}
+                            title={isCurrentOwner ? 'لا يمكنك حذف حساب المالك الحالي' : 'حذف الحساب نهائياً'}
+                            className="px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>حذف</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -623,6 +677,53 @@ export const UsersManager: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {userToDelete && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 dir-rtl">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-rose-400" />
+              </div>
+              <h3 className="font-extrabold text-base text-white">تأكيد حذف الحساب نهائياً</h3>
+            </div>
+
+            <div className="text-xs text-slate-300 space-y-2 leading-relaxed">
+              <p>
+                هل أنت متأكد من حذف حساب المستخدم <strong className="text-rose-300 font-mono">{userToDelete.email}</strong>؟
+              </p>
+              <div className="text-rose-400 font-bold bg-rose-950/40 p-3 rounded-xl border border-rose-500/30">
+                ⚠️ هذا الإجراء نهائي ولا يمكن التراجع عنه! سيتم حذف حساب Auth وكافة بيانات وصلاحيات الحساب من النظام.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setUserToDelete(null)}
+                disabled={deletingUserId === userToDelete.id}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={confirmDeleteUser}
+                disabled={deletingUserId === userToDelete.id}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-rose-600/25"
+              >
+                {deletingUserId === userToDelete.id ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>تأكيد الحذف النهائي</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

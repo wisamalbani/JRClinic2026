@@ -51,8 +51,11 @@ serve(async (req) => {
       );
     }
 
-    // Check requester role in public.users
-    const { data: requesterProfile, error: profileError } = await userClient
+    // 3. Admin Client with Service Role Key
+    const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    // Check requester role in public.users using adminClient
+    const { data: requesterProfile, error: profileError } = await adminClient
       .from('users')
       .select('role')
       .eq('auth_id', user.id)
@@ -61,7 +64,7 @@ serve(async (req) => {
     if (profileError || !requesterProfile || requesterProfile.role !== 'owner') {
       console.error('[admin-create-user] Forbidden access attempt by non-owner user:', user.email, profileError?.message);
       return new Response(
-        JSON.stringify({ success: false, error: 'Forbidden: Only Owner can create user accounts' }),
+        JSON.stringify({ success: false, error: 'Forbidden: Only Owner can create or update user accounts' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -70,6 +73,60 @@ serve(async (req) => {
 
     // 2. Parse Request Payload
     const body = await req.json();
+
+    // Handle 'update' action for existing users
+    if (body.action === 'update') {
+      const { user_id, role, linked_clinic_id, linked_rep_id, linked_laser_staff_id, is_active, full_name } = body;
+      if (!user_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'user_id is required for update action' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('[admin-create-user] Updating user:', user_id, { role, linked_clinic_id, linked_rep_id, linked_laser_staff_id, is_active, full_name });
+
+      const updates: Record<string, any> = {};
+      if (role !== undefined) updates.role = role;
+      if (linked_clinic_id !== undefined) updates.linked_clinic_id = linked_clinic_id || null;
+      if (linked_rep_id !== undefined) updates.linked_rep_id = linked_rep_id || null;
+      if (linked_laser_staff_id !== undefined) updates.linked_laser_staff_id = linked_laser_staff_id || null;
+      if (is_active !== undefined) updates.is_active = is_active;
+      if (full_name !== undefined) updates.full_name = full_name;
+
+      // Try updating by id
+      let { data: updatedRecord, error: updateError } = await adminClient
+        .from('users')
+        .update(updates)
+        .eq('id', user_id)
+        .select();
+
+      // If 0 rows updated by id, try updating by auth_id
+      if (!updateError && (!updatedRecord || updatedRecord.length === 0)) {
+        const { data: authRecord, error: authErr } = await adminClient
+          .from('users')
+          .update(updates)
+          .eq('auth_id', user_id)
+          .select();
+        updatedRecord = authRecord;
+        updateError = authErr;
+      }
+
+      if (updateError) {
+        console.error('[admin-create-user] Failed to update user profile:', updateError.message);
+        return new Response(
+          JSON.stringify({ success: false, error: `Failed to update user profile: ${updateError.message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('[admin-create-user] User profile updated successfully:', updatedRecord);
+      return new Response(
+        JSON.stringify({ success: true, message: 'User updated successfully', user: updatedRecord }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { email, password, role, linked_clinic_id, linked_rep_id, linked_laser_staff_id, full_name } = body;
 
     console.log('[admin-create-user] Creating user payload:', { email, role, linked_clinic_id, linked_rep_id, linked_laser_staff_id });
@@ -88,9 +145,6 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // 3. Admin Client with Service Role Key
-    const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Create User via Auth Admin API
     const { data: newAuthUser, error: createError } = await adminClient.auth.admin.createUser({

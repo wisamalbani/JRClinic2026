@@ -30,14 +30,94 @@ export async function updateUserLinking(
     full_name?: string | null;
   }
 ): Promise<void> {
-  const { error } = await supabase
+  if (!userId) {
+    throw new Error('معرف المستخدم غير محدد');
+  }
+
+  const cleanUpdates: Record<string, any> = {};
+  if (updates.role !== undefined) cleanUpdates.role = updates.role;
+  if (updates.linked_clinic_id !== undefined) cleanUpdates.linked_clinic_id = updates.linked_clinic_id || null;
+  if (updates.linked_rep_id !== undefined) cleanUpdates.linked_rep_id = updates.linked_rep_id || null;
+  if (updates.linked_laser_staff_id !== undefined) cleanUpdates.linked_laser_staff_id = updates.linked_laser_staff_id || null;
+  if (updates.is_active !== undefined) cleanUpdates.is_active = updates.is_active;
+  if (updates.full_name !== undefined) cleanUpdates.full_name = updates.full_name;
+
+  // 1. Try client-side update by primary key id
+  let { data, error } = await supabase
     .from('users')
-    .update(updates)
-    .eq('id', userId);
+    .update(cleanUpdates)
+    .eq('id', userId)
+    .select();
+
+  // If 0 rows updated by id, try by auth_id
+  if (!error && (!data || data.length === 0)) {
+    const res = await supabase
+      .from('users')
+      .update(cleanUpdates)
+      .eq('auth_id', userId)
+      .select();
+    data = res.data;
+    error = res.error;
+  }
+
+  // If client-side update succeeded and updated at least 1 record
+  if (!error && data && data.length > 0) {
+    return;
+  }
 
   if (error) {
-    console.error('Error updating user profile:', error);
-    throw error;
+    console.warn('Client-side user update failed:', error.message);
+  } else {
+    console.warn('Client-side update returned 0 rows (likely RLS restriction), attempting Edge Function update...');
+  }
+
+  // 2. Fallback to Edge Function (runs with admin service role)
+  try {
+    const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-create-user', {
+      body: {
+        action: 'update',
+        user_id: userId,
+        ...cleanUpdates,
+      },
+    });
+
+    if (fnError) {
+      console.error('Edge function invocation error:', fnError);
+      throw new Error(error?.message || fnError.message || 'فشل استدعاء دالة التحديث');
+    }
+
+    if (!fnData || fnData.success === false || fnData.error) {
+      const errMsg = fnData?.error || fnData?.message || error?.message || 'فشل تحديث بيانات وتصاريح المستخدم';
+      console.error('Edge function error payload:', errMsg);
+      throw new Error(errMsg);
+    }
+  } catch (err: any) {
+    console.error('Error in updateUserLinking:', err);
+    throw new Error(err.message || error?.message || 'فشل تحديث بيانات المستخدم');
+  }
+}
+
+export async function deleteUserAccount(userId: string, authId?: string): Promise<void> {
+  if (!userId && !authId) {
+    throw new Error('معرف المستخدم غير محدد');
+  }
+
+  const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-delete-user', {
+    body: {
+      target_user_id: userId,
+      target_auth_id: authId,
+    },
+  });
+
+  if (fnError) {
+    console.error('Edge function delete error:', fnError);
+    throw new Error(fnError.message || 'فشل استدعاء دالة حذف المستخدم (admin-delete-user)');
+  }
+
+  if (!fnData || fnData.success === false || fnData.error) {
+    const errMsg = fnData?.error || fnData?.message || 'فشل حذف الحساب';
+    console.error('Delete user error response:', errMsg);
+    throw new Error(errMsg);
   }
 }
 
