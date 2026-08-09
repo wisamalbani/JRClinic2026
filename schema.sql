@@ -78,9 +78,10 @@ CREATE TABLE IF NOT EXISTS public.exchange_rates (
 CREATE TABLE IF NOT EXISTS public.users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     auth_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
-    role VARCHAR(50) NOT NULL DEFAULT 'secretary' CHECK (role IN ('owner', 'secretary', 'doctor', 'rep', 'laser_staff')),
+    role VARCHAR(50) NOT NULL DEFAULT 'secretary' CHECK (role IN ('owner', 'secretary', 'doctor', 'rep', 'viewer', 'laser_staff')),
     linked_clinic_id UUID REFERENCES public.clinics(id) ON DELETE SET NULL,
     linked_rep_id UUID,
+    linked_laser_staff_id UUID REFERENCES public.laser_staff(id) ON DELETE SET NULL,
     email VARCHAR(255),
     full_name VARCHAR(255),
     is_active BOOLEAN NOT NULL DEFAULT true,
@@ -219,6 +220,12 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION public.get_current_user_rep_id()
 RETURNS UUID AS $$
     SELECT linked_rep_id FROM public.users WHERE auth_id = auth.uid() AND is_active = true LIMIT 1;
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+-- Helper function to get current user linked laser staff
+CREATE OR REPLACE FUNCTION public.get_current_user_laser_staff_id()
+RETURNS UUID AS $$
+    SELECT linked_laser_staff_id FROM public.users WHERE auth_id = auth.uid() AND is_active = true LIMIT 1;
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
 
 -- Enable RLS on all public tables
@@ -648,5 +655,52 @@ CREATE POLICY "Owner full access report_permissions"
 CREATE POLICY "Users read own report_permissions" 
     ON public.report_permissions FOR SELECT 
     USING (user_id = auth.uid());
+
+-- ============================================================================
+-- PHASE 8: VIEWER ROLE & LASER STAFF ROLE RLS POLICIES
+-- ============================================================================
+
+-- Ensure column exists on public.users
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS linked_laser_staff_id UUID REFERENCES public.laser_staff(id) ON DELETE SET NULL;
+
+-- VIEWER POLICIES: Full SELECT read-only access across all tables
+CREATE POLICY "Viewer read clinics" ON public.clinics FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read doctor_percentage_history" ON public.doctor_percentage_history FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read cash_boxes" ON public.cash_boxes FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read expense_categories" ON public.expense_categories FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read exchange_rates" ON public.exchange_rates FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read users" ON public.users FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read transactions" ON public.transactions FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read audit_log" ON public.audit_log FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read inventory_items" ON public.inventory_items FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read reps" ON public.reps FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read material_batches" ON public.material_batches FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read material_consumption" ON public.material_consumption FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read rep_payments" ON public.rep_payments FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read laser_staff" ON public.laser_staff FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read laser_staff_percentage_history" ON public.laser_staff_percentage_history FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read laser_staff_salary_history" ON public.laser_staff_salary_history FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read laser_shot_rate_history" ON public.laser_shot_rate_history FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read laser_transactions" ON public.laser_transactions FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read laser_withdrawals" ON public.laser_withdrawals FOR SELECT USING (public.get_current_user_role() = 'viewer');
+CREATE POLICY "Viewer read report_permissions" ON public.report_permissions FOR SELECT USING (public.get_current_user_role() = 'viewer');
+
+-- LASER STAFF POLICIES: SELECT read-only access strictly for own staff_id data
+CREATE POLICY "LaserStaff read own laser_transactions" ON public.laser_transactions FOR SELECT USING (
+    public.get_current_user_role() = 'laser_staff' AND staff_id = public.get_current_user_laser_staff_id()
+);
+
+CREATE POLICY "LaserStaff read own laser_withdrawals" ON public.laser_withdrawals FOR SELECT USING (
+    public.get_current_user_role() = 'laser_staff' AND staff_id = public.get_current_user_laser_staff_id()
+);
+
+CREATE POLICY "LaserStaff read own laser_staff_percentage_history" ON public.laser_staff_percentage_history FOR SELECT USING (
+    public.get_current_user_role() = 'laser_staff' AND staff_id = public.get_current_user_laser_staff_id()
+);
+
+CREATE POLICY "LaserStaff read own laser_staff_salary_history" ON public.laser_staff_salary_history FOR SELECT USING (
+    public.get_current_user_role() = 'laser_staff' AND staff_id = public.get_current_user_laser_staff_id()
+);
+
 
 

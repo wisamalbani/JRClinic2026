@@ -1,4 +1,4 @@
-export type Role = 'owner' | 'secretary' | 'doctor' | 'rep' | 'laser_staff';
+export type Role = 'owner' | 'secretary' | 'doctor' | 'rep' | 'viewer' | 'laser_staff';
 
 export interface UserProfile {
   id: string;
@@ -7,6 +7,7 @@ export interface UserProfile {
   role: Role;
   linked_clinic_id?: string | null;
   linked_rep_id?: string | null;
+  linked_laser_staff_id?: string | null;
   is_active: boolean;
   full_name?: string | null;
   created_at?: string;

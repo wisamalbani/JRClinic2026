@@ -1,22 +1,19 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { AlertCircle, Database, Lock, Mail, ShieldAlert, Sparkles, UserPlus, LogIn, FileCode } from 'lucide-react';
+import { AlertCircle, Database, Lock, Mail, ShieldAlert, Sparkles, LogIn, FileCode } from 'lucide-react';
 import { SupabaseSetupModal } from './SupabaseSetupModal';
 
 export const LoginPage: React.FC = () => {
-  const { signIn, signUp, isConfigured } = useAuth();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const { signIn, isConfigured } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    setSuccessMsg(null);
 
     if (!isConfigured) {
       setErrorMsg('الاتصال بـ Supabase غير مهيأ. يرجى ضبط VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY أولاً.');
@@ -31,21 +28,13 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      if (mode === 'login') {
-        const { error } = await signIn(email, password);
-        if (error) {
-          setErrorMsg(error.message === 'Invalid login credentials' 
+      const { error } = await signIn(email, password);
+      if (error) {
+        setErrorMsg(
+          error.message === 'Invalid login credentials'
             ? 'بيانات الدخول غير صحيحة. يرجى التأكد من البريد الإلكتروني وكلمة المرور.'
-            : `خطأ أثناء تسجيل الدخول: ${error.message}`);
-        }
-      } else {
-        const { error } = await signUp(email, password);
-        if (error) {
-          setErrorMsg(`خطأ أثناء إنشاء الحساب: ${error.message}`);
-        } else {
-          setSuccessMsg('تم إنشاء الحساب بنجاح! تم تعيين دورك تلقائياً كـ (secretary) وفق القواعد الأمنية. يمكنك تسجيل الدخول الآن.');
-          setMode('login');
-        }
+            : `خطأ أثناء تسجيل الدخول: ${error.message}`
+        );
       }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'حدث خطأ غير متوقع.');
@@ -90,16 +79,14 @@ export const LoginPage: React.FC = () => {
               <Lock className="w-6 h-6" />
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-              {mode === 'login' ? 'تسجيل الدخول للنظام' : 'إنشاء حساب جديد'}
+              تسجيل الدخول للنظام
             </h2>
             <p className="text-xs text-slate-400">
-              {mode === 'login'
-                ? 'أدخل بيانات الاعتماد للوصول إلى لوحة المحاسبة الصلاحية'
-                : 'سيتم إنشاء حسابك ودورك بشكل آمن عبر قاعدة البيانات'}
+              أدخل البريد الإلكتروني وكلمة المرور الممنوحة لك من إدارة المركز
             </p>
           </div>
 
-          {/* Missing Supabase Config Alert (Mandatory Security Error Display) */}
+          {/* Missing Supabase Config Alert */}
           {!isConfigured && (
             <div className="p-4 rounded-2xl bg-red-950/60 border border-red-500/40 text-red-200 text-xs space-y-2">
               <div className="flex items-start gap-2.5">
@@ -123,18 +110,11 @@ export const LoginPage: React.FC = () => {
             </div>
           )}
 
-          {/* Success / Error Banners */}
+          {/* Error Banner */}
           {errorMsg && (
             <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
               <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>{successMsg}</span>
             </div>
           )}
 
@@ -178,38 +158,18 @@ export const LoginPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Mode Switcher Link */}
-            <div className="flex items-center justify-between text-xs pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setMode(mode === 'login' ? 'signup' : 'login');
-                  setErrorMsg(null);
-                  setSuccessMsg(null);
-                }}
-                className="text-blue-400 hover:text-blue-300 transition-colors font-medium"
-              >
-                {mode === 'login' ? 'ليس لديك حساب؟ إنشاء حساب جديد' : 'لديك حساب بالفعل؟ تسجيل الدخول'}
-              </button>
-            </div>
-
             {/* Submit Button */}
             <button
               type="submit"
               disabled={!isConfigured || loading}
-              className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 font-bold text-white text-xs shadow-lg shadow-blue-600/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all flex items-center justify-center gap-2"
+              className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 font-bold text-white text-xs shadow-lg shadow-blue-600/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all flex items-center justify-center gap-2 mt-2"
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : mode === 'login' ? (
+              ) : (
                 <>
                   <LogIn className="w-4 h-4" />
                   <span>تسجيل الدخول</span>
-                </>
-              ) : (
-                <>
-                  <UserPlus className="w-4 h-4" />
-                  <span>إنشاء حساب جديد</span>
                 </>
               )}
             </button>
@@ -219,12 +179,11 @@ export const LoginPage: React.FC = () => {
           <div className="pt-4 border-t border-slate-700/60 text-[11px] text-slate-400 space-y-1">
             <p className="font-semibold text-slate-300 flex items-center gap-1.5">
               <ShieldAlert className="w-3.5 h-3.5 text-blue-400" />
-              ضوابط الأمان والأدوار للمرحلة الأولى:
+              إشعار الأمان والوصول:
             </p>
-            <ul className="list-disc list-inside space-y-0.5 text-slate-400 pr-1 text-[10.5px]">
-              <li>الحسابات الجديدة تأخذ دور السكرتارية (<code className="text-slate-200">secretary</code>) تلقائياً وحصرياً عبر كود الدالة.</li>
-              <li>الترقية إلى مالك المركز (<code className="text-slate-200">owner</code>) تتم حصراً بقرار من المالك داخل جدول المستخدمين.</li>
-            </ul>
+            <p className="text-slate-400 pr-1 text-[10.5px] leading-relaxed">
+              التسجيل الذاتي معطّل بالكامل. يتم إنشاء الحسابات وتعيين أدوار المستخدمين (أطباء، مندوبين، سكرتارية، كادر ليزر، مشاهدين) حصرياً من قبل مالك المركز (<code className="text-slate-200">Owner</code>).
+            </p>
           </div>
         </div>
       </main>

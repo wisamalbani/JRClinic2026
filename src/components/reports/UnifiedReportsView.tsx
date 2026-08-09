@@ -63,7 +63,7 @@ export const UnifiedReportsView: React.FC = () => {
   };
 
   const isReportAllowed = (reportKey: string): boolean => {
-    if (isOwner) return true; // Owner always sees everything
+    if (isOwner || profile?.role === 'viewer') return true; // Owner & Viewer see all reports
     return permissionsMap[reportKey] !== false; // Default enabled = true
   };
 
