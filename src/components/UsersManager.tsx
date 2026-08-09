@@ -139,12 +139,14 @@ export const UsersManager: React.FC = () => {
         },
       });
 
-      if (error) {
-        throw new Error(error.message || 'فشل استدعاء دالة إنشاء المستخدم admin-create-user');
-      }
-
-      if (data?.error) {
-        throw new Error(data.error);
+      // Check for server-side error or failure flag in response
+      if (error || !data || data.success === false || data.error) {
+        const serverErrorMessage =
+          data?.error ||
+          data?.message ||
+          error?.message ||
+          'فشل استدعاء دالة إنشاء المستخدم admin-create-user';
+        throw new Error(serverErrorMessage);
       }
 
       setMessage({

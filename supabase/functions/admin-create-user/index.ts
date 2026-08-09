@@ -18,8 +18,9 @@ serve(async (req) => {
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
     if (!supabaseServiceRoleKey) {
+      console.error('[admin-create-user] SUPABASE_SERVICE_ROLE_KEY missing on server');
       return new Response(
-        JSON.stringify({ error: 'SUPABASE_SERVICE_ROLE_KEY environment variable is missing on server' }),
+        JSON.stringify({ success: false, error: 'SUPABASE_SERVICE_ROLE_KEY environment variable is missing in Supabase Edge Function secrets' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -27,8 +28,9 @@ serve(async (req) => {
     // 1. Verify Authorization Token
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('[admin-create-user] Missing Authorization header');
       return new Response(
-        JSON.stringify({ error: 'Missing Authorization header' }),
+        JSON.stringify({ success: false, error: 'Missing Authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -42,8 +44,9 @@ serve(async (req) => {
 
     const { data: { user }, error: userError } = await userClient.auth.getUser(token);
     if (userError || !user) {
+      console.error('[admin-create-user] User token verification failed:', userError?.message);
       return new Response(
-        JSON.stringify({ error: 'Unauthorized user token' }),
+        JSON.stringify({ success: false, error: `Unauthorized user token: ${userError?.message || 'Invalid session'}` }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -56,19 +59,24 @@ serve(async (req) => {
       .single();
 
     if (profileError || !requesterProfile || requesterProfile.role !== 'owner') {
+      console.error('[admin-create-user] Forbidden access attempt by non-owner user:', user.email, profileError?.message);
       return new Response(
-        JSON.stringify({ error: 'Forbidden: Only Owner can create user accounts' }),
+        JSON.stringify({ success: false, error: 'Forbidden: Only Owner can create user accounts' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('[admin-create-user] Requester verified as Owner:', user.email);
 
     // 2. Parse Request Payload
     const body = await req.json();
     const { email, password, role, linked_clinic_id, linked_rep_id, linked_laser_staff_id, full_name } = body;
 
+    console.log('[admin-create-user] Creating user payload:', { email, role, linked_clinic_id, linked_rep_id, linked_laser_staff_id });
+
     if (!email || !password || !role) {
       return new Response(
-        JSON.stringify({ error: 'email, password, and role are required fields' }),
+        JSON.stringify({ success: false, error: 'email, password, and role are required fields' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -76,7 +84,7 @@ serve(async (req) => {
     const validRoles = ['owner', 'secretary', 'doctor', 'rep', 'viewer', 'laser_staff'];
     if (!validRoles.includes(role)) {
       return new Response(
-        JSON.stringify({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` }),
+        JSON.stringify({ success: false, error: `Invalid role "${role}". Must be one of: ${validRoles.join(', ')}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -92,14 +100,16 @@ serve(async (req) => {
       user_metadata: { full_name: full_name || email.split('@')[0] },
     });
 
-    if (createError || !newAuthUser.user) {
+    if (createError || !newAuthUser?.user) {
+      console.error('[admin-create-user] Auth user creation failed:', createError?.message);
       return new Response(
-        JSON.stringify({ error: `Failed to create auth user: ${createError?.message || 'Unknown error'}` }),
+        JSON.stringify({ success: false, error: `Failed to create auth user: ${createError?.message || 'Unknown Auth Error'}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const newUserId = newAuthUser.user.id;
+    console.log('[admin-create-user] Auth user created successfully. Auth ID:', newUserId);
 
     // 4. Upsert user record in public.users table with specific role & links
     const { data: userRecord, error: dbError } = await adminClient
@@ -121,11 +131,27 @@ serve(async (req) => {
       .single();
 
     if (dbError) {
+      console.error('[admin-create-user] public.users insert failed:', dbError.message);
+      console.log('[admin-create-user] Rollback triggered: Deleting orphaned auth user:', newUserId);
+      
+      // Rollback: delete newly created auth user so no orphaned auth user remains
+      const { error: deleteError } = await adminClient.auth.admin.deleteUser(newUserId);
+      if (deleteError) {
+        console.error('[admin-create-user] Rollback deleteUser failed:', deleteError.message);
+      } else {
+        console.log('[admin-create-user] Rollback completed: Auth user deleted successfully.');
+      }
+
       return new Response(
-        JSON.stringify({ error: `User auth created, but public.users record failed: ${dbError.message}` }),
+        JSON.stringify({
+          success: false,
+          error: `Failed to insert user profile in public.users: ${dbError.message} (Auth user creation was rolled back)`,
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('[admin-create-user] User created and linked successfully in public.users:', userRecord);
 
     return new Response(
       JSON.stringify({
@@ -136,8 +162,9 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (err: any) {
+    console.error('[admin-create-user] Unexpected exception:', err?.message);
     return new Response(
-      JSON.stringify({ error: err?.message || 'Internal server error' }),
+      JSON.stringify({ success: false, error: err?.message || 'Internal server error in Edge Function' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
